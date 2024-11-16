@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Text.Json;
 
 namespace TES3MP_Manager
 {
@@ -36,14 +37,13 @@ namespace TES3MP_Manager
         {
             // Clear the ListBox items to prevent duplicates if reloaded
             backupsListBox.Items.Clear();
+            List<string> prefixes = new List<string>(); // Store prefixes for the JSON file
 
             // Check if the backup path exists and load .zip files
             if (Directory.Exists(backupPath))
             {
-                // Get all .zip files in the backup path
                 string[] zipFiles = Directory.GetFiles(backupPath, "*.zip");
 
-                // Add each file name to the ListBox with date and time prefix
                 foreach (string zipFile in zipFiles)
                 {
                     string fileName = Path.GetFileName(zipFile);
@@ -57,6 +57,7 @@ namespace TES3MP_Manager
                     {
                         // Format the date and time and add it as a prefix
                         string formattedDate = $"[{dateTime:yyyy-MM-dd HH:mm:ss}]";
+                        prefixes.Add(formattedDate); // Add prefix to the list
                         backupsListBox.Items.Add($"{formattedDate} {fileName}");
                     }
                     else
@@ -65,13 +66,15 @@ namespace TES3MP_Manager
                         backupsListBox.Items.Add(fileName);
                     }
                 }
+
+                // Update the JSON file with the collected prefixes
+                UpdateBackupJson(prefixes);
             }
             else
             {
                 MessageBox.Show("Backup path not found. Please set a valid backup path.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
 
         public void RefreshBackupList(string backupPath)
         {
@@ -106,30 +109,26 @@ namespace TES3MP_Manager
                 return;
             }
 
-            // Get the selected backup item from the ListBox
             string selectedItem = backupsListBox.SelectedItem.ToString();
-
-            // Extract the actual file name by removing the date prefix
             int startOfFileName = selectedItem.IndexOf("]") + 2; // Skip past the closing bracket and space
             string actualFileName = selectedItem.Substring(startOfFileName);
-
-            // Construct the full path of the backup file
             string backupFilePath = Path.Combine(Properties.Settings.Default.BackupPath, actualFileName);
-
-            // Determine the target subfolder for selective extraction
             string selectedOption = optionsListBox.SelectedItem.ToString();
             string targetSubfolder = selectedOption switch
             {
-                "Everything" => "",        // Extract everything
-                "Cell" => "data/cell",     // Extract only the 'data/cell' folder
-                "Player" => "data/player", // Extract only the 'data/player' folder
-                "World" => "data/world",   // Extract only the 'data/world' folder
+                "Everything" => "",
+                "Cell" => "data/cell",
+                "Player" => "data/player",
+                "World" => "data/world",
                 _ => throw new InvalidOperationException("Invalid option selected.")
             };
 
             try
             {
-                // Pause the backup timer in Main
+                // Stop TES3MP server process if running
+                KillTes3mpServer();
+
+                // Pause backup timer in Main
                 if (Owner is Main mainForm)
                 {
                     mainForm.Invoke((MethodInvoker)(() =>
@@ -139,7 +138,7 @@ namespace TES3MP_Manager
                     }));
                 }
 
-                // Clear the target directory if "Everything" is selected
+                // Clear target directory if "Everything" is selected
                 string sourcePath = Properties.Settings.Default.SourcePath;
                 if (selectedOption == "Everything")
                 {
@@ -151,18 +150,18 @@ namespace TES3MP_Manager
                 // Extract the selected folders from the backup archive
                 ExtractSelectedFolders(backupFilePath, sourcePath, targetSubfolder);
 
-                // Log rollback completion in Main
+                // Log rollback completion
                 if (Owner is Main mainFormWithLogging)
                 {
                     mainFormWithLogging.Invoke((MethodInvoker)(() =>
                     {
-                        mainFormWithLogging.LogMessage($"Rollback completed using backup: {actualFileName} (Range: {selectedOption})");
+                        mainFormWithLogging.LogMessage($"Rollback completed using backup: {actualFileName}, range: {selectedOption}");
                     }));
                 }
             }
             catch (Exception ex)
             {
-                // Log any errors in Main
+                // Log any errors
                 if (Owner is Main mainFormWithErrorLogging)
                 {
                     mainFormWithErrorLogging.Invoke((MethodInvoker)(() =>
@@ -174,7 +173,10 @@ namespace TES3MP_Manager
             }
             finally
             {
-                // Restart the backup timer in Main and log it
+                // Restart TES3MP server process
+                RestartTes3mpServer();
+
+                // Restart backup timer
                 if (Owner is Main mainFormToRestart)
                 {
                     mainFormToRestart.Invoke((MethodInvoker)(() =>
@@ -186,7 +188,8 @@ namespace TES3MP_Manager
             }
         }
 
-        private void ExtractSelectedFolders(string zipFilePath, string destinationPath, string targetSubfolder)
+
+        public void ExtractSelectedFolders(string zipFilePath, string destinationPath, string targetSubfolder)
         {
             string targetPath = Path.Combine(destinationPath, targetSubfolder);
 
@@ -223,5 +226,134 @@ namespace TES3MP_Manager
                 }
             }
         }
+
+        public void KillTes3mpServer()
+        {
+            try
+            {
+                var processes = System.Diagnostics.Process.GetProcessesByName("tes3mp-server");
+                foreach (var process in processes)
+                {
+                    process.Kill();
+                    process.WaitForExit(); // Ensure the process has terminated
+                }
+                // Log the termination of the process
+                if (Owner is Main mainForm)
+                {
+                    mainForm.Invoke((MethodInvoker)(() =>
+                    {
+                        mainForm.LogMessage("TES3MP server process terminated before rollback.");
+                    }));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log any errors during process termination
+                if (Owner is Main mainForm)
+                {
+                    mainForm.Invoke((MethodInvoker)(() =>
+                    {
+                        mainForm.LogMessage($"Error terminating TES3MP server process: {ex.Message}");
+                    }));
+                }
+            }
+        }
+
+        public void RestartTes3mpServer()
+        {
+            try
+            {
+                string exePath = Properties.Settings.Default.ExePath;
+                if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
+                {
+                    throw new FileNotFoundException("TES3MP server executable path is invalid or missing.");
+                }
+
+                var process = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        UseShellExecute = true,
+                        CreateNoWindow = false
+                    }
+                };
+                process.Start();
+
+                // Log the restart of the process
+                if (Owner is Main mainForm)
+                {
+                    mainForm.Invoke((MethodInvoker)(() =>
+                    {
+                        mainForm.LogMessage("TES3MP server process restarted after rollback.");
+                    }));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log any errors during process restart
+                if (Owner is Main mainForm)
+                {
+                    mainForm.Invoke((MethodInvoker)(() =>
+                    {
+                        mainForm.LogMessage($"Error restarting TES3MP server process: {ex.Message}");
+                    }));
+                }
+            }
+        }
+
+        private void UpdateBackupJson(List<string> prefixes)
+        {
+            try
+            {
+                // Construct the path for the .json file
+                string sourcePath = Properties.Settings.Default.SourcePath;
+                if (string.IsNullOrEmpty(sourcePath) || !Directory.Exists(sourcePath))
+                {
+                    throw new DirectoryNotFoundException("Source path is invalid or missing.");
+                }
+
+                string jsonFilePath = Path.Combine(sourcePath, "scripts", "custom", "backup_manager", "backups.json");
+
+                // Ensure the directory exists
+                string jsonDirectory = Path.GetDirectoryName(jsonFilePath);
+                if (!Directory.Exists(jsonDirectory))
+                {
+                    Directory.CreateDirectory(jsonDirectory);
+                }
+
+                // Convert the list of prefixes to JSON format
+                string jsonContent = System.Text.Json.JsonSerializer.Serialize(prefixes, new System.Text.Json.JsonSerializerOptions
+                {
+                    WriteIndented = true // Pretty-print the JSON
+                });
+
+                // Write the JSON content to the file
+                File.WriteAllText(jsonFilePath, jsonContent);
+                /*
+                // Log the update
+                if (Owner is Main mainForm)
+                {
+                    mainForm.Invoke((MethodInvoker)(() =>
+                    {
+                        mainForm.LogMessage($"Backup prefixes updated in JSON file at: {jsonFilePath}");
+                    }));
+                }
+                */
+            }
+            catch (Exception ex)
+            {
+                // Log any errors
+                if (Owner is Main mainForm)
+                {
+                    mainForm.Invoke((MethodInvoker)(() =>
+                    {
+                        mainForm.LogMessage($"Error updating backup JSON file: {ex.Message}");
+                    }));
+                }
+            }
+        }
+
+
     }
 }

@@ -35,6 +35,7 @@
             backupsLabel = new Label();
             backupsListLabel = new Label();
             rangeLabel = new Label();
+            restartCheckBox = new CheckBox();
             ((System.ComponentModel.ISupportInitialize)backupsNumeric).BeginInit();
             SuspendLayout();
             // 
@@ -101,11 +102,23 @@
             rangeLabel.TabIndex = 6;
             rangeLabel.Text = "Range";
             // 
+            // restartCheckBox
+            // 
+            restartCheckBox.AutoSize = true;
+            restartCheckBox.Location = new Point(25, 564);
+            restartCheckBox.Name = "restartCheckBox";
+            restartCheckBox.RightToLeft = RightToLeft.Yes;
+            restartCheckBox.Size = new Size(96, 19);
+            restartCheckBox.TabIndex = 7;
+            restartCheckBox.Text = "Restart server";
+            restartCheckBox.UseVisualStyleBackColor = true;
+            // 
             // Rollback
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(529, 635);
+            Controls.Add(restartCheckBox);
             Controls.Add(rangeLabel);
             Controls.Add(backupsListLabel);
             Controls.Add(backupsLabel);
@@ -129,5 +142,6 @@
         private Label backupsLabel;
         private Label backupsListLabel;
         private Label rangeLabel;
+        private CheckBox restartCheckBox;
     }
 }

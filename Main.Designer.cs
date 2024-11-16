@@ -41,6 +41,8 @@
             timerLabel = new Label();
             stopBtn = new Button();
             compressionLabel = new Label();
+            setExeBtn = new Button();
+            exePathTextBox = new TextBox();
             ((System.ComponentModel.ISupportInitialize)intervalNumeric).BeginInit();
             SuspendLayout();
             // 
@@ -56,27 +58,27 @@
             // 
             // pathBtn
             // 
-            pathBtn.Location = new Point(28, 63);
+            pathBtn.Location = new Point(29, 39);
             pathBtn.Name = "pathBtn";
             pathBtn.Size = new Size(75, 23);
             pathBtn.TabIndex = 1;
-            pathBtn.Text = "Set";
+            pathBtn.Text = "Browse";
             pathBtn.UseVisualStyleBackColor = true;
             pathBtn.Click += pathBtn_Click;
             // 
             // pathTextBox
             // 
             pathTextBox.BackColor = SystemColors.Window;
-            pathTextBox.Location = new Point(113, 63);
+            pathTextBox.Location = new Point(114, 39);
             pathTextBox.Name = "pathTextBox";
             pathTextBox.PlaceholderText = "Select /server/ folder...";
             pathTextBox.ReadOnly = true;
-            pathTextBox.Size = new Size(249, 23);
+            pathTextBox.Size = new Size(247, 23);
             pathTextBox.TabIndex = 2;
             // 
             // intervalNumeric
             // 
-            intervalNumeric.Location = new Point(252, 186);
+            intervalNumeric.Location = new Point(252, 213);
             intervalNumeric.Name = "intervalNumeric";
             intervalNumeric.Size = new Size(109, 23);
             intervalNumeric.TabIndex = 3;
@@ -84,7 +86,7 @@
             // 
             // startBtn
             // 
-            startBtn.Location = new Point(29, 184);
+            startBtn.Location = new Point(29, 211);
             startBtn.Name = "startBtn";
             startBtn.Size = new Size(75, 23);
             startBtn.TabIndex = 4;
@@ -105,7 +107,7 @@
             // intervalLabel
             // 
             intervalLabel.AutoSize = true;
-            intervalLabel.Location = new Point(141, 190);
+            intervalLabel.Location = new Point(141, 217);
             intervalLabel.Name = "intervalLabel";
             intervalLabel.Size = new Size(105, 15);
             intervalLabel.TabIndex = 6;
@@ -113,29 +115,29 @@
             // 
             // setPathBackupBtn
             // 
-            setPathBackupBtn.Location = new Point(29, 101);
+            setPathBackupBtn.Location = new Point(30, 77);
             setPathBackupBtn.Name = "setPathBackupBtn";
             setPathBackupBtn.Size = new Size(75, 23);
             setPathBackupBtn.TabIndex = 7;
-            setPathBackupBtn.Text = "Set";
+            setPathBackupBtn.Text = "Browse";
             setPathBackupBtn.UseVisualStyleBackColor = true;
             setPathBackupBtn.Click += setPathBackupBtn_Click;
             // 
             // pathBackupTextBox
             // 
             pathBackupTextBox.BackColor = SystemColors.Window;
-            pathBackupTextBox.Location = new Point(113, 101);
+            pathBackupTextBox.Location = new Point(114, 77);
             pathBackupTextBox.Name = "pathBackupTextBox";
             pathBackupTextBox.PlaceholderText = "Select backup folder...";
             pathBackupTextBox.ReadOnly = true;
-            pathBackupTextBox.Size = new Size(249, 23);
+            pathBackupTextBox.Size = new Size(247, 23);
             pathBackupTextBox.TabIndex = 8;
             // 
             // compressionComboBox
             // 
             compressionComboBox.FormattingEnabled = true;
             compressionComboBox.Items.AddRange(new object[] { "Best", "Fastest", "None" });
-            compressionComboBox.Location = new Point(251, 223);
+            compressionComboBox.Location = new Point(251, 250);
             compressionComboBox.Name = "compressionComboBox";
             compressionComboBox.Size = new Size(110, 23);
             compressionComboBox.TabIndex = 9;
@@ -150,7 +152,7 @@
             // 
             // stopBtn
             // 
-            stopBtn.Location = new Point(29, 223);
+            stopBtn.Location = new Point(29, 250);
             stopBtn.Name = "stopBtn";
             stopBtn.Size = new Size(75, 23);
             stopBtn.TabIndex = 11;
@@ -161,17 +163,37 @@
             // compressionLabel
             // 
             compressionLabel.AutoSize = true;
-            compressionLabel.Location = new Point(141, 226);
+            compressionLabel.Location = new Point(141, 253);
             compressionLabel.Name = "compressionLabel";
             compressionLabel.Size = new Size(77, 15);
             compressionLabel.TabIndex = 12;
             compressionLabel.Text = "Compression";
+            // 
+            // setExeBtn
+            // 
+            setExeBtn.Location = new Point(29, 115);
+            setExeBtn.Name = "setExeBtn";
+            setExeBtn.Size = new Size(75, 23);
+            setExeBtn.TabIndex = 13;
+            setExeBtn.Text = "Browse";
+            setExeBtn.UseVisualStyleBackColor = true;
+            setExeBtn.Click += setExeBtn_Click;
+            // 
+            // exePathTextBox
+            // 
+            exePathTextBox.Location = new Point(114, 115);
+            exePathTextBox.Name = "exePathTextBox";
+            exePathTextBox.PlaceholderText = "Select tes3mp-server.exe file...";
+            exePathTextBox.Size = new Size(247, 23);
+            exePathTextBox.TabIndex = 14;
             // 
             // Main
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(529, 635);
+            Controls.Add(exePathTextBox);
+            Controls.Add(setExeBtn);
             Controls.Add(compressionLabel);
             Controls.Add(stopBtn);
             Controls.Add(timerLabel);
@@ -209,5 +231,7 @@
         private Label timerLabel;
         private Button stopBtn;
         private Label compressionLabel;
+        private Button setExeBtn;
+        private TextBox exePathTextBox;
     }
 }

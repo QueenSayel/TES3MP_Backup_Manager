@@ -12,16 +12,148 @@ namespace TES3MP_Manager
         private DateTime nextBackupTime;
         private string sourcePath;
         private string backupPath;
+        private string exePath;
         private int backupInterval;
         private CompressionLevel compressionLevel;
         private Rollback rollbackForm;
-
+        private FileSystemWatcher commandWatcher;
         public Main()
         {
             InitializeComponent();
             InitializeBackup();
+            InitializeCommandWatcher();
             this.FormClosing += Main_FormClosing;
         }
+
+        private void InitializeCommandWatcher()
+        {
+            // Set up the FileSystemWatcher to monitor command.json
+            string sourcePath = Properties.Settings.Default.SourcePath;
+            if (!string.IsNullOrEmpty(sourcePath) && Directory.Exists(sourcePath))
+            {
+                string commandFilePath = Path.Combine(sourcePath, "scripts", "custom", "backup_manager", "command.json");
+                string commandDirectory = Path.GetDirectoryName(commandFilePath);
+
+                if (Directory.Exists(commandDirectory))
+                {
+                    commandWatcher = new FileSystemWatcher
+                    {
+                        Path = commandDirectory,
+                        Filter = "command.json",
+                        NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                        EnableRaisingEvents = true
+                    };
+
+                    commandWatcher.Changed += CommandFile_Changed;
+                }
+                else
+                {
+                    LogMessage("Command directory does not exist. Command watcher not initialized.");
+                }
+            }
+            else
+            {
+                LogMessage("Source path not set. Command watcher not initialized.");
+            }
+        }
+
+        private DateTime lastCommandProcessedTime = DateTime.MinValue;
+        private readonly TimeSpan debounceTime = TimeSpan.FromSeconds(1);
+
+        private void CommandFile_Changed(object sender, FileSystemEventArgs e)
+        {
+            // Delay to allow file write completion
+            System.Threading.Thread.Sleep(100);
+
+            // Debounce logic: Ignore events triggered within debounceTime
+            if (DateTime.Now - lastCommandProcessedTime < debounceTime)
+            {
+                return;
+            }
+
+            lastCommandProcessedTime = DateTime.Now;
+
+            try
+            {
+                string commandFilePath = e.FullPath;
+                if (File.Exists(commandFilePath))
+                {
+                    string jsonContent = File.ReadAllText(commandFilePath);
+
+                    // Parse the JSON file
+                    var command = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent);
+
+                    if (command != null && command.ContainsKey("backup") && command.ContainsKey("option"))
+                    {
+                        string backupDate = command["backup"];
+                        string option = command["option"];
+
+                        // Trigger rollback programmatically
+                        Invoke((MethodInvoker)(() => PerformRollbackFromCommand(backupDate, option)));
+                    }
+                    else
+                    {
+                        Invoke((MethodInvoker)(() => LogMessage("Invalid or incomplete command.json format.")));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Invoke((MethodInvoker)(() => LogMessage($"Error reading or processing command.json: {ex.Message}")));
+            }
+        }
+
+
+        private void PerformRollbackFromCommand(string backupDate, string option)
+        {
+            try
+            {
+                string backupFileName = $"tes3mp_{backupDate.Replace("-", "").Replace(":", "").Replace(" ", "_")}.zip";
+                string backupFilePath = Path.Combine(backupPath, backupFileName);
+
+                LogMessage($"Looking for file: {backupFileName} in {backupPath}");
+
+                if (!File.Exists(backupFilePath))
+                {
+                    Invoke((MethodInvoker)(() =>
+                        MessageBox.Show($"Backup file not found: {backupFileName}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)));
+                    return;
+                }
+
+                string targetSubfolder = option switch
+                {
+                    "Everything" => "",
+                    "Cell" => "data/cell",
+                    "Player" => "data/player",
+                    "World" => "data/world",
+                    _ => throw new InvalidOperationException("Invalid option in command.json.")
+                };
+
+                // Use rollbackForm to call the methods
+                if (rollbackForm == null || rollbackForm.IsDisposed)
+                {
+                    rollbackForm = new Rollback(this); // Create a new instance if needed
+                }
+
+                rollbackForm.KillTes3mpServer();
+
+                StopBackupTimer();
+
+                LogMessage("Performing rollback...");
+                rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, targetSubfolder);
+
+                rollbackForm.RestartTes3mpServer();
+
+                StartBackupTimer();
+
+                LogMessage($"Rollback completed using backup: {backupFileName}, range:{option}");
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"Error during rollback triggered by console: {ex.Message}");
+            }
+        }
+
 
         private void InitializeBackup()
         {
@@ -29,11 +161,13 @@ namespace TES3MP_Manager
             sourcePath = Properties.Settings.Default.SourcePath;
             backupPath = Properties.Settings.Default.BackupPath;
             backupInterval = Properties.Settings.Default.BackupInterval;
+            exePath = Properties.Settings.Default.ExePath;
 
             // Update controls with loaded settings
             pathTextBox.Text = sourcePath;
             pathBackupTextBox.Text = backupPath;
             intervalNumeric.Value = backupInterval;
+            exePathTextBox.Text = exePath;
 
             // Set compression level based on saved setting
             string savedCompression = Properties.Settings.Default.CompressionLevel;
@@ -91,6 +225,28 @@ namespace TES3MP_Manager
                     {
                         rollbackForm.RefreshBackupList(backupPath); // Pass the updated path directly
                     }
+                }
+            }
+        }
+
+        private void setExeBtn_Click(object sender, EventArgs e)
+        {
+            // Open file dialog to locate the tes3mp-server.exe file
+            using (OpenFileDialog dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "TES3MP Server Executable|tes3mp-server.exe";
+                dialog.Title = "Select tes3mp-server.exe";
+
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    string selectedPath = dialog.FileName;
+                    exePathTextBox.Text = selectedPath;
+
+                    // Save the path to settings
+                    Properties.Settings.Default.ExePath = selectedPath;
+                    Properties.Settings.Default.Save();
+
+                    LogMessage($"Server executable path set to: {selectedPath}");
                 }
             }
         }
