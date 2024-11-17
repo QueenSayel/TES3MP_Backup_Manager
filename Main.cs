@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Windows.Forms;
 using System.Timers;
+using System.Diagnostics;
 
 namespace TES3MP_Manager
 {
@@ -17,12 +18,20 @@ namespace TES3MP_Manager
         private CompressionLevel compressionLevel;
         private Rollback rollbackForm;
         private FileSystemWatcher commandWatcher;
+        private System.Timers.Timer statusCheckTimer;
         public Main()
         {
             InitializeComponent();
             InitializeBackup();
             InitializeCommandWatcher();
             this.FormClosing += Main_FormClosing;
+        }
+
+        private void InitializeStatusMonitor()
+        {
+            statusCheckTimer = new System.Timers.Timer(1000);  // 1-second interval
+            statusCheckTimer.Elapsed += (sender, e) => UpdateServerStatus();  // Update status on each tick
+            statusCheckTimer.Start();
         }
 
         private void InitializeCommandWatcher()
@@ -108,11 +117,12 @@ namespace TES3MP_Manager
         {
             try
             {
+
+                // Construct the backup file name and path
                 string backupFileName = $"tes3mp_{backupDate.Replace("-", "").Replace(":", "").Replace(" ", "_")}.zip";
                 string backupFilePath = Path.Combine(backupPath, backupFileName);
 
-                LogMessage($"Looking for file: {backupFileName} in {backupPath}");
-
+                // Check if the backup file exists
                 if (!File.Exists(backupFilePath))
                 {
                     Invoke((MethodInvoker)(() =>
@@ -120,39 +130,46 @@ namespace TES3MP_Manager
                     return;
                 }
 
-                string targetSubfolder = option switch
-                {
-                    "Everything" => "",
-                    "Cell" => "data/cell",
-                    "Player" => "data/player",
-                    "World" => "data/world",
-                    _ => throw new InvalidOperationException("Invalid option in command.json.")
-                };
-
-                // Use rollbackForm to call the methods
                 if (rollbackForm == null || rollbackForm.IsDisposed)
                 {
                     rollbackForm = new Rollback(this); // Create a new instance if needed
                 }
-
                 rollbackForm.KillTes3mpServer();
-
                 StopBackupTimer();
+                string sourcePath = Properties.Settings.Default.SourcePath;
 
-                LogMessage("Performing rollback...");
-                rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, targetSubfolder);
+                // Perform rollback based on the selected option
+                if (option == "Everything")
+                {
+                    // Perform selective rollback for Cell, Player, and World
+                    rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, "data/cell");
+                    rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, "data/player");
+                    rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, "data/world");
+                }
+                else
+                {
+                    string targetSubfolder = $"data/{option.ToLower()}";
+                    rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, targetSubfolder);
+                }
 
-                rollbackForm.RestartTes3mpServer();
-
-                StartBackupTimer();
-
-                LogMessage($"Rollback completed using backup: {backupFileName}, range:{option}");
+                // Log success message
+                LogMessage($"Rollback completed using backup: {backupFileName}, range: {option}");
             }
             catch (Exception ex)
             {
+                // Log error message if something goes wrong
                 LogMessage($"Error during rollback triggered by console: {ex.Message}");
             }
+            finally
+            {
+                // Restart the server after the rollback
+                rollbackForm.RestartTes3mpServer();
+                StartBackupTimer();
+                // Log the message to indicate the backup process has resumed
+                LogMessage("Backup process resumed.");
+            }
         }
+
 
 
         private void InitializeBackup()
@@ -454,9 +471,59 @@ namespace TES3MP_Manager
             }
         }
 
+        private bool IsServerRunning()
+        {
+            var processes = System.Diagnostics.Process.GetProcessesByName("tes3mp-server");
+            return processes.Length > 0;  // Returns true if the process is found
+        }
+
+        private void UpdateServerStatus()
+        {
+            // Ensure the UI update is done on the UI thread
+            if (serverStatusLabel.InvokeRequired)
+            {
+                serverStatusLabel.Invoke(new Action(UpdateServerStatus));  // Invoke itself on the UI thread
+                return;
+            }
+
+            // Update the static label
+            serverStatusLabel.Text = "Server Status: ";
+
+            if (IsServerRunning())
+            {
+                statusLabel.Text = "Online";
+                statusLabel.ForeColor = Color.Green;
+                launchServerBtn.Enabled = false;  // Disable the button if the server is running
+            }
+            else
+            {
+                statusLabel.Text = "Offline";
+                statusLabel.ForeColor = Color.Red;
+                launchServerBtn.Enabled = true;  // Enable the button if the server is not running
+            }
+        }
+
+        private void launchServerBtn_Click(object sender, EventArgs e)
+        {
+            if (!IsServerRunning())  // Check if the server is not already running
+            {
+                try
+                {
+                    // Start the server process
+                    Process.Start(exePath);  // exePath should be the path to tes3mp-server.exe
+                    UpdateServerStatus();    // Update the status after launching
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error launching the server: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
         private void Main_Load(object sender, EventArgs e)
         {
-
+            InitializeStatusMonitor();
+            UpdateServerStatus();
         }
     }
 }

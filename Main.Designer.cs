@@ -43,6 +43,9 @@
             compressionLabel = new Label();
             setExeBtn = new Button();
             exePathTextBox = new TextBox();
+            serverStatusLabel = new Label();
+            launchServerBtn = new Button();
+            statusLabel = new Label();
             ((System.ComponentModel.ISupportInitialize)intervalNumeric).BeginInit();
             SuspendLayout();
             // 
@@ -187,11 +190,42 @@
             exePathTextBox.Size = new Size(247, 23);
             exePathTextBox.TabIndex = 14;
             // 
+            // serverStatusLabel
+            // 
+            serverStatusLabel.AutoSize = true;
+            serverStatusLabel.Location = new Point(30, 169);
+            serverStatusLabel.Name = "serverStatusLabel";
+            serverStatusLabel.Size = new Size(77, 15);
+            serverStatusLabel.TabIndex = 15;
+            serverStatusLabel.Text = "Server Status:";
+            // 
+            // launchServerBtn
+            // 
+            launchServerBtn.Location = new Point(367, 115);
+            launchServerBtn.Name = "launchServerBtn";
+            launchServerBtn.Size = new Size(75, 23);
+            launchServerBtn.TabIndex = 16;
+            launchServerBtn.Text = "Launch";
+            launchServerBtn.UseVisualStyleBackColor = true;
+            launchServerBtn.Click += launchServerBtn_Click;
+            // 
+            // statusLabel
+            // 
+            statusLabel.AutoSize = true;
+            statusLabel.Location = new Point(103, 169);
+            statusLabel.Name = "statusLabel";
+            statusLabel.Size = new Size(39, 15);
+            statusLabel.TabIndex = 17;
+            statusLabel.Text = "Status";
+            // 
             // Main
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(529, 635);
+            Controls.Add(statusLabel);
+            Controls.Add(launchServerBtn);
+            Controls.Add(serverStatusLabel);
             Controls.Add(exePathTextBox);
             Controls.Add(setExeBtn);
             Controls.Add(compressionLabel);
@@ -233,5 +267,8 @@
         private Label compressionLabel;
         private Button setExeBtn;
         private TextBox exePathTextBox;
+        private Label serverStatusLabel;
+        private Button launchServerBtn;
+        private Label statusLabel;
     }
 }

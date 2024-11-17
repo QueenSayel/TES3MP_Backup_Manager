@@ -95,14 +95,12 @@ namespace TES3MP_Manager
 
         private void rollbackBtn_Click(object sender, EventArgs e)
         {
-            // Ensure a backup is selected
             if (backupsListBox.SelectedItem == null)
             {
                 MessageBox.Show("Please select a backup to roll back to.", "No Backup Selected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Ensure an option is selected
             if (optionsListBox.SelectedItem == null)
             {
                 MessageBox.Show("Please select an option for rollback (Everything, Cell, Player, World).", "No Option Selected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -114,21 +112,11 @@ namespace TES3MP_Manager
             string actualFileName = selectedItem.Substring(startOfFileName);
             string backupFilePath = Path.Combine(Properties.Settings.Default.BackupPath, actualFileName);
             string selectedOption = optionsListBox.SelectedItem.ToString();
-            string targetSubfolder = selectedOption switch
-            {
-                "Everything" => "",
-                "Cell" => "data/cell",
-                "Player" => "data/player",
-                "World" => "data/world",
-                _ => throw new InvalidOperationException("Invalid option selected.")
-            };
 
             try
             {
-                // Stop TES3MP server process if running
                 KillTes3mpServer();
 
-                // Pause backup timer in Main
                 if (Owner is Main mainForm)
                 {
                     mainForm.Invoke((MethodInvoker)(() =>
@@ -138,19 +126,21 @@ namespace TES3MP_Manager
                     }));
                 }
 
-                // Clear target directory if "Everything" is selected
                 string sourcePath = Properties.Settings.Default.SourcePath;
+
                 if (selectedOption == "Everything")
                 {
-                    DirectoryInfo di = new DirectoryInfo(sourcePath);
-                    foreach (FileInfo file in di.GetFiles()) file.Delete();
-                    foreach (DirectoryInfo dir in di.GetDirectories()) dir.Delete(true);
+                    // Perform selective rollback for Cell, Player, and World
+                    ExtractSelectedFolders(backupFilePath, sourcePath, "data/cell");
+                    ExtractSelectedFolders(backupFilePath, sourcePath, "data/player");
+                    ExtractSelectedFolders(backupFilePath, sourcePath, "data/world");
+                }
+                else
+                {
+                    string targetSubfolder = $"data/{selectedOption.ToLower()}";
+                    ExtractSelectedFolders(backupFilePath, sourcePath, targetSubfolder);
                 }
 
-                // Extract the selected folders from the backup archive
-                ExtractSelectedFolders(backupFilePath, sourcePath, targetSubfolder);
-
-                // Log rollback completion
                 if (Owner is Main mainFormWithLogging)
                 {
                     mainFormWithLogging.Invoke((MethodInvoker)(() =>
@@ -161,7 +151,6 @@ namespace TES3MP_Manager
             }
             catch (Exception ex)
             {
-                // Log any errors
                 if (Owner is Main mainFormWithErrorLogging)
                 {
                     mainFormWithErrorLogging.Invoke((MethodInvoker)(() =>
@@ -173,10 +162,8 @@ namespace TES3MP_Manager
             }
             finally
             {
-                // Restart TES3MP server process
                 RestartTes3mpServer();
 
-                // Restart backup timer
                 if (Owner is Main mainFormToRestart)
                 {
                     mainFormToRestart.Invoke((MethodInvoker)(() =>
