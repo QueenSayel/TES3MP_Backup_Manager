@@ -46,6 +46,7 @@
             serverStatusLabel = new Label();
             launchServerBtn = new Button();
             statusLabel = new Label();
+            minimiseCheckBox = new CheckBox();
             ((System.ComponentModel.ISupportInitialize)intervalNumeric).BeginInit();
             SuspendLayout();
             // 
@@ -218,11 +219,24 @@
             statusLabel.TabIndex = 17;
             statusLabel.Text = "Status";
             // 
+            // minimiseCheckBox
+            // 
+            minimiseCheckBox.AutoSize = true;
+            minimiseCheckBox.Location = new Point(387, 215);
+            minimiseCheckBox.Name = "minimiseCheckBox";
+            minimiseCheckBox.RightToLeft = RightToLeft.Yes;
+            minimiseCheckBox.Size = new Size(112, 19);
+            minimiseCheckBox.TabIndex = 18;
+            minimiseCheckBox.Text = "Minimise to tray";
+            minimiseCheckBox.UseVisualStyleBackColor = true;
+            minimiseCheckBox.CheckedChanged += minimiseCheckBox_CheckedChanged;
+            // 
             // Main
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(529, 635);
+            Controls.Add(minimiseCheckBox);
             Controls.Add(statusLabel);
             Controls.Add(launchServerBtn);
             Controls.Add(serverStatusLabel);
@@ -270,5 +284,6 @@
         private Label serverStatusLabel;
         private Button launchServerBtn;
         private Label statusLabel;
+        private CheckBox minimiseCheckBox;
     }
 }

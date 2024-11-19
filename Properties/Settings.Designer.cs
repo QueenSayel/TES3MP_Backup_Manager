@@ -94,5 +94,17 @@ namespace TES3MP_Manager.Properties {
                 this["ExePath"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool Minimise {
+            get {
+                return ((bool)(this["Minimise"]));
+            }
+            set {
+                this["Minimise"] = value;
+            }
+        }
     }
 }

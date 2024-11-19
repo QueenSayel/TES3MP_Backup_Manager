@@ -19,24 +19,71 @@ namespace TES3MP_Manager
         private Rollback rollbackForm;
         private FileSystemWatcher commandWatcher;
         private System.Timers.Timer statusCheckTimer;
+        private NotifyIcon trayIcon;
         public Main()
         {
             InitializeComponent();
             InitializeBackup();
             InitializeCommandWatcher();
+            InitializeTrayIcon();
             this.FormClosing += Main_FormClosing;
+        }
+        private void InitializeTrayIcon()
+        {
+            trayIcon = new NotifyIcon()
+            {
+                Icon = SystemIcons.Information,
+                Visible = false,
+                BalloonTipTitle = "TES3MP Manager",
+                BalloonTipText = "TES3MP minimised.",
+                Text = "TES3MP Manager",
+            };
+            trayIcon.DoubleClick += TrayIcon_DoubleClick;
+        }
+
+        private void TrayIcon_DoubleClick(object sender, EventArgs e)
+        {
+            this.Show();
+            this.WindowState = FormWindowState.Normal;
+        }
+
+        private void minimiseCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (minimiseCheckBox.Checked)
+            {
+
+                this.Resize += Main_ResizeToTray;
+            }
+            else
+            {
+
+                this.Resize -= Main_ResizeToTray;
+            }
+        }
+
+        private void Main_ResizeToTray(object sender, EventArgs e)
+        {
+            if (this.WindowState == FormWindowState.Minimized && minimiseCheckBox.Checked)
+            {
+
+                this.Hide();
+                trayIcon.Visible = true;
+            }
+            else if (this.WindowState == FormWindowState.Normal)
+            {
+                trayIcon.Visible = false;
+            }
         }
 
         private void InitializeStatusMonitor()
         {
-            statusCheckTimer = new System.Timers.Timer(1000);  // 1-second interval
-            statusCheckTimer.Elapsed += (sender, e) => UpdateServerStatus();  // Update status on each tick
+            statusCheckTimer = new System.Timers.Timer(1000);
+            statusCheckTimer.Elapsed += (sender, e) => UpdateServerStatus();
             statusCheckTimer.Start();
         }
 
         private void InitializeCommandWatcher()
         {
-            // Set up the FileSystemWatcher to monitor command.json
             string sourcePath = Properties.Settings.Default.SourcePath;
             if (!string.IsNullOrEmpty(sourcePath) && Directory.Exists(sourcePath))
             {
@@ -71,10 +118,8 @@ namespace TES3MP_Manager
 
         private void CommandFile_Changed(object sender, FileSystemEventArgs e)
         {
-            // Delay to allow file write completion
             System.Threading.Thread.Sleep(100);
 
-            // Debounce logic: Ignore events triggered within debounceTime
             if (DateTime.Now - lastCommandProcessedTime < debounceTime)
             {
                 return;
@@ -97,7 +142,6 @@ namespace TES3MP_Manager
                         string backupDate = command["backup"];
                         string option = command["option"];
 
-                        // Trigger rollback programmatically
                         Invoke((MethodInvoker)(() => PerformRollbackFromCommand(backupDate, option)));
                     }
                     else
@@ -115,14 +159,13 @@ namespace TES3MP_Manager
 
         private void PerformRollbackFromCommand(string backupDate, string option)
         {
+            bool rollbackFormCreated = false;
+
             try
             {
-
-                // Construct the backup file name and path
                 string backupFileName = $"tes3mp_{backupDate.Replace("-", "").Replace(":", "").Replace(" ", "_")}.zip";
                 string backupFilePath = Path.Combine(backupPath, backupFileName);
 
-                // Check if the backup file exists
                 if (!File.Exists(backupFilePath))
                 {
                     Invoke((MethodInvoker)(() =>
@@ -132,16 +175,16 @@ namespace TES3MP_Manager
 
                 if (rollbackForm == null || rollbackForm.IsDisposed)
                 {
-                    rollbackForm = new Rollback(this); // Create a new instance if needed
+                    rollbackForm = new Rollback(this);
+                    rollbackFormCreated = true;
                 }
+
                 rollbackForm.KillTes3mpServer();
                 StopBackupTimer();
                 string sourcePath = Properties.Settings.Default.SourcePath;
 
-                // Perform rollback based on the selected option
                 if (option == "Everything")
                 {
-                    // Perform selective rollback for Cell, Player, and World
                     rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, "data/cell");
                     rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, "data/player");
                     rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, "data/world");
@@ -152,46 +195,43 @@ namespace TES3MP_Manager
                     rollbackForm.ExtractSelectedFolders(backupFilePath, sourcePath, targetSubfolder);
                 }
 
-                // Log success message
                 LogMessage($"Rollback completed using backup: {backupFileName}, range: {option}");
             }
             catch (Exception ex)
             {
-                // Log error message if something goes wrong
                 LogMessage($"Error during rollback triggered by console: {ex.Message}");
             }
             finally
             {
-                // Restart the server after the rollback
                 rollbackForm.RestartTes3mpServer();
                 StartBackupTimer();
-                // Log the message to indicate the backup process has resumed
                 LogMessage("Backup process resumed.");
+
+                if (rollbackFormCreated && rollbackForm != null)
+                {
+                    rollbackForm.Dispose();
+                    rollbackForm = null;
+                }
             }
         }
 
 
-
         private void InitializeBackup()
         {
-            // Load saved settings
             sourcePath = Properties.Settings.Default.SourcePath;
             backupPath = Properties.Settings.Default.BackupPath;
             backupInterval = Properties.Settings.Default.BackupInterval;
             exePath = Properties.Settings.Default.ExePath;
 
-            // Update controls with loaded settings
             pathTextBox.Text = sourcePath;
             pathBackupTextBox.Text = backupPath;
             intervalNumeric.Value = backupInterval;
             exePathTextBox.Text = exePath;
 
-            // Set compression level based on saved setting
             string savedCompression = Properties.Settings.Default.CompressionLevel;
             int compressionIndex = compressionComboBox.Items.IndexOf(savedCompression);
             compressionComboBox.SelectedIndex = compressionIndex >= 0 ? compressionIndex : 0;
             int maxBackups = Properties.Settings.Default.MaxBackups;
-            // Set other defaults
             stopBtn.Visible = false;
             timerLabel.Visible = false;
             if (string.IsNullOrEmpty(sourcePath) || string.IsNullOrEmpty(backupPath))
@@ -200,7 +240,7 @@ namespace TES3MP_Manager
             }
             else
             {
-                logTextBox.Clear(); // Clear any residual text if paths are valid
+                logTextBox.Clear();
                 LogMessage("Settings loaded successfully.");
             }
         }
@@ -211,11 +251,11 @@ namespace TES3MP_Manager
             Properties.Settings.Default.BackupPath = backupPath;
             Properties.Settings.Default.BackupInterval = (int)intervalNumeric.Value;
             Properties.Settings.Default.CompressionLevel = compressionComboBox.SelectedItem.ToString();
+            Properties.Settings.Default.Minimise = minimiseCheckBox.Checked;
             Properties.Settings.Default.Save();
         }
         private void pathBtn_Click(object sender, EventArgs e)
         {
-            // Show folder dialog to select source folder
             using (FolderBrowserDialog dialog = new FolderBrowserDialog())
             {
                 if (dialog.ShowDialog() == DialogResult.OK)
@@ -237,10 +277,9 @@ namespace TES3MP_Manager
                     pathBackupTextBox.Text = backupPath;
                     LogMessage($"Backup path set to: {backupPath}");
 
-                    // Refresh the rollback form if it is open
                     if (rollbackForm != null && !rollbackForm.IsDisposed)
                     {
-                        rollbackForm.RefreshBackupList(backupPath); // Pass the updated path directly
+                        rollbackForm.RefreshBackupList(backupPath);
                     }
                 }
             }
@@ -248,7 +287,6 @@ namespace TES3MP_Manager
 
         private void setExeBtn_Click(object sender, EventArgs e)
         {
-            // Open file dialog to locate the tes3mp-server.exe file
             using (OpenFileDialog dialog = new OpenFileDialog())
             {
                 dialog.Filter = "TES3MP Server Executable|tes3mp-server.exe";
@@ -259,7 +297,6 @@ namespace TES3MP_Manager
                     string selectedPath = dialog.FileName;
                     exePathTextBox.Text = selectedPath;
 
-                    // Save the path to settings
                     Properties.Settings.Default.ExePath = selectedPath;
                     Properties.Settings.Default.Save();
 
@@ -270,14 +307,12 @@ namespace TES3MP_Manager
 
         private void startBtn_Click(object sender, EventArgs e)
         {
-            // Check if paths are set
             if (string.IsNullOrEmpty(sourcePath) || string.IsNullOrEmpty(backupPath))
             {
                 MessageBox.Show("Please set both source and backup paths.");
                 return;
             }
 
-            // Set interval and compression level
             backupInterval = (int)intervalNumeric.Value;
             switch (compressionComboBox.SelectedItem.ToString())
             {
@@ -296,13 +331,13 @@ namespace TES3MP_Manager
             compressionComboBox.Enabled = false;
             pathBtn.Enabled = false;
             setPathBackupBtn.Enabled = false;
+            setExeBtn.Enabled = false;
             startBtn.Enabled = false;
             stopBtn.Visible = true;
 
-            // Initialize and start the timer
             if (backupTimer == null)
             {
-                backupTimer = new System.Timers.Timer(1000); // Tick every second
+                backupTimer = new System.Timers.Timer(1000);
                 backupTimer.Elapsed += BackupTimer_Tick;
             }
 
@@ -312,17 +347,17 @@ namespace TES3MP_Manager
         }
         private void stopBtn_Click(object sender, EventArgs e)
         {
-            // Stop the timer if it's running
+
             if (backupTimer != null && backupTimer.Enabled)
             {
                 backupTimer.Stop();
             }
 
-            // Reset the controls to their initial state
             intervalNumeric.Enabled = true;
             compressionComboBox.Enabled = true;
             pathBtn.Enabled = true;
             setPathBackupBtn.Enabled = true;
+            setExeBtn.Enabled = true;
             startBtn.Enabled = true;
             stopBtn.Visible = false;
             timerLabel.Visible = false;
@@ -331,12 +366,10 @@ namespace TES3MP_Manager
 
         private void BackupTimer_Tick(object sender, ElapsedEventArgs e)
         {
-            // Calculate remaining time
             var timeRemaining = nextBackupTime - DateTime.Now;
 
             if (timeRemaining.TotalSeconds > 0)
             {
-                // Update timer label with time remaining
                 Invoke((MethodInvoker)(() =>
                 {
                     timerLabel.Text = $"Next backup in: {timeRemaining.Minutes:D2}:{timeRemaining.Seconds:D2}";
@@ -344,11 +377,9 @@ namespace TES3MP_Manager
             }
             else
             {
-                // Stop the timer while backup is in progress
                 backupTimer.Stop();
                 PerformBackup();
 
-                // Set the next backup time and restart timer
                 nextBackupTime = DateTime.Now.AddMinutes(backupInterval);
                 backupTimer.Start();
             }
@@ -358,39 +389,32 @@ namespace TES3MP_Manager
         {
             try
             {
-                // Prepare the backup file path
                 string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                 string zipFileName = $"tes3mp_{timestamp}.zip";
                 string zipFilePath = Path.Combine(backupPath, zipFileName);
 
-                // Log start of backup
                 Invoke((MethodInvoker)(() =>
                 {
                     timerLabel.Text = "Compressing files...";
                     LogMessage($"Starting backup...");
                 }));
 
-                // Perform zipping
                 ZipFile.CreateFromDirectory(sourcePath, zipFilePath, compressionLevel, false);
 
-                // After creating the new backup, enforce the backup limit
                 EnforceBackupLimit();
 
-                // Log completion of backup
                 Invoke((MethodInvoker)(() =>
                 {
                     LogMessage($"Backup completed: {zipFileName}");
 
-                    // Refresh the Rollback form if it is open
                     if (rollbackForm != null && !rollbackForm.IsDisposed)
                     {
-                        rollbackForm.RefreshBackupList(backupPath); // Update ListBox with the new file
+                        rollbackForm.RefreshBackupList(backupPath);
                     }
                 }));
             }
             catch (Exception ex)
             {
-                // Log any errors during backup
                 Invoke((MethodInvoker)(() =>
                 {
                     LogMessage($"Error during backup: {ex.Message}");
@@ -400,13 +424,11 @@ namespace TES3MP_Manager
 
         private void EnforceBackupLimit()
         {
-            // Retrieve max backups setting directly from saved settings
             int maxBackups = Properties.Settings.Default.MaxBackups;
             string[] zipFiles = Directory.GetFiles(backupPath, "*.zip");
 
             if (zipFiles.Length > maxBackups)
             {
-                // Order files by creation date to identify the oldest ones
                 var filesToDelete = zipFiles
                     .OrderBy(File.GetCreationTime)
                     .Take(zipFiles.Length - maxBackups);
@@ -415,7 +437,6 @@ namespace TES3MP_Manager
                 {
                     File.Delete(file);
 
-                    // Ensure LogMessage is called on the main thread
                     Invoke((MethodInvoker)(() =>
                     {
                         LogMessage($"Deleted old backup: {Path.GetFileName(file)}");
@@ -464,9 +485,9 @@ namespace TES3MP_Manager
             {
                 Invoke((MethodInvoker)(() =>
                 {
-                    nextBackupTime = DateTime.Now.AddMinutes(backupInterval); // Reset the next backup time
+                    nextBackupTime = DateTime.Now.AddMinutes(backupInterval);
                     backupTimer.Start();
-                    timerLabel.Visible = true; // Make sure timer label is visible again
+                    timerLabel.Visible = true;
                 }));
             }
         }
@@ -474,44 +495,41 @@ namespace TES3MP_Manager
         private bool IsServerRunning()
         {
             var processes = System.Diagnostics.Process.GetProcessesByName("tes3mp-server");
-            return processes.Length > 0;  // Returns true if the process is found
+            return processes.Length > 0;
         }
 
         private void UpdateServerStatus()
         {
-            // Ensure the UI update is done on the UI thread
             if (serverStatusLabel.InvokeRequired)
             {
-                serverStatusLabel.Invoke(new Action(UpdateServerStatus));  // Invoke itself on the UI thread
+                serverStatusLabel.Invoke(new Action(UpdateServerStatus));
                 return;
             }
 
-            // Update the static label
             serverStatusLabel.Text = "Server Status: ";
 
             if (IsServerRunning())
             {
                 statusLabel.Text = "Online";
                 statusLabel.ForeColor = Color.Green;
-                launchServerBtn.Enabled = false;  // Disable the button if the server is running
+                launchServerBtn.Enabled = false;
             }
             else
             {
                 statusLabel.Text = "Offline";
                 statusLabel.ForeColor = Color.Red;
-                launchServerBtn.Enabled = true;  // Enable the button if the server is not running
+                launchServerBtn.Enabled = true;
             }
         }
 
         private void launchServerBtn_Click(object sender, EventArgs e)
         {
-            if (!IsServerRunning())  // Check if the server is not already running
+            if (!IsServerRunning())
             {
                 try
                 {
-                    // Start the server process
-                    Process.Start(exePath);  // exePath should be the path to tes3mp-server.exe
-                    UpdateServerStatus();    // Update the status after launching
+                    Process.Start(exePath);
+                    UpdateServerStatus();
                 }
                 catch (Exception ex)
                 {
@@ -524,6 +542,13 @@ namespace TES3MP_Manager
         {
             InitializeStatusMonitor();
             UpdateServerStatus();
+            minimiseCheckBox.Checked = Properties.Settings.Default.Minimise;
+
+            if (minimiseCheckBox.Checked)
+            {
+                this.Hide();
+                trayIcon.Visible = true;
+            }
         }
     }
 }
