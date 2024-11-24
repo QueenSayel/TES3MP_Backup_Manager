@@ -7,6 +7,7 @@ using System.Diagnostics;
 
 namespace TES3MP_Manager
 {
+
     public partial class Main : Form
     {
         private System.Timers.Timer backupTimer;
@@ -513,14 +514,78 @@ namespace TES3MP_Manager
                 statusLabel.Text = "Online";
                 statusLabel.ForeColor = Color.Green;
                 launchServerBtn.Enabled = false;
+
+                // Show and enable the new buttons when the server is running
+                shutdownBtn.Visible = true;
+                restartBtn.Visible = true;
+                shutdownBtn.Enabled = true;
+                restartBtn.Enabled = true;
             }
             else
             {
                 statusLabel.Text = "Offline";
                 statusLabel.ForeColor = Color.Red;
                 launchServerBtn.Enabled = true;
+
+                // Hide the new buttons when the server is offline
+                shutdownBtn.Visible = false;
+                restartBtn.Visible = false;
+                shutdownBtn.Enabled = false;
+                restartBtn.Enabled = false;
             }
         }
+
+        private void ShutdownBtn_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var processes = Process.GetProcessesByName("tes3mp-server");
+                foreach (var process in processes)
+                {
+                    process.Kill();
+                    process.WaitForExit(); // Ensure the process is fully terminated
+                }
+
+                LogMessage("TES3MP server has been shut down.");
+                UpdateServerStatus(); // Update UI to reflect the new server state
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error shutting down the server: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void RestartBtn_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Shutdown the server
+                var processes = Process.GetProcessesByName("tes3mp-server");
+                foreach (var process in processes)
+                {
+                    process.Kill();
+                    process.WaitForExit(); // Ensure the process is fully terminated
+                }
+
+                // Start the server
+                if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                {
+                    Process.Start(exePath);
+                    LogMessage("TES3MP server has been restarted.");
+                }
+                else
+                {
+                    MessageBox.Show("TES3MP server executable path is invalid.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+
+                UpdateServerStatus(); // Update UI to reflect the new server state
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error restarting the server: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
 
         private void launchServerBtn_Click(object sender, EventArgs e)
         {

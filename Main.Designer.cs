@@ -47,6 +47,8 @@
             launchServerBtn = new Button();
             statusLabel = new Label();
             minimiseCheckBox = new CheckBox();
+            shutdownBtn = new Button();
+            restartBtn = new Button();
             ((System.ComponentModel.ISupportInitialize)intervalNumeric).BeginInit();
             SuspendLayout();
             // 
@@ -231,11 +233,33 @@
             minimiseCheckBox.UseVisualStyleBackColor = true;
             minimiseCheckBox.CheckedChanged += minimiseCheckBox_CheckedChanged;
             // 
+            // shutdownBtn
+            // 
+            shutdownBtn.Location = new Point(367, 115);
+            shutdownBtn.Name = "shutdownBtn";
+            shutdownBtn.Size = new Size(75, 23);
+            shutdownBtn.TabIndex = 19;
+            shutdownBtn.Text = "Shutdown";
+            shutdownBtn.UseVisualStyleBackColor = true;
+            shutdownBtn.Click += ShutdownBtn_Click;
+            // 
+            // restartBtn
+            // 
+            restartBtn.Location = new Point(367, 144);
+            restartBtn.Name = "restartBtn";
+            restartBtn.Size = new Size(75, 23);
+            restartBtn.TabIndex = 20;
+            restartBtn.Text = "Restart";
+            restartBtn.UseVisualStyleBackColor = true;
+            restartBtn.Click += RestartBtn_Click;
+            // 
             // Main
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(529, 635);
+            Controls.Add(restartBtn);
+            Controls.Add(shutdownBtn);
             Controls.Add(minimiseCheckBox);
             Controls.Add(statusLabel);
             Controls.Add(launchServerBtn);
@@ -285,5 +309,7 @@
         private Button launchServerBtn;
         private Label statusLabel;
         private CheckBox minimiseCheckBox;
+        private Button shutdownBtn;
+        private Button restartBtn;
     }
 }
