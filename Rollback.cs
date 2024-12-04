@@ -113,16 +113,23 @@ namespace TES3MP_Manager
             string backupFilePath = Path.Combine(Properties.Settings.Default.BackupPath, actualFileName);
             string selectedOption = optionsListBox.SelectedItem.ToString();
 
+            // Get the Main form instance to access its IsServerRunning method
+            bool wasServerRunning = false;
+            if (Owner is Main mainForm)
+            {
+                wasServerRunning = mainForm.IsServerRunning();
+            }
+
             try
             {
                 KillTes3mpServer();
 
-                if (Owner is Main mainForm)
+                if (Owner is Main mainFormWithLogging)
                 {
-                    mainForm.Invoke((MethodInvoker)(() =>
+                    mainFormWithLogging.Invoke((MethodInvoker)(() =>
                     {
-                        mainForm.StopBackupTimer();
-                        mainForm.LogMessage("Performing rollback...");
+                        mainFormWithLogging.StopBackupTimer();
+                        mainFormWithLogging.LogMessage("Performing rollback...");
                     }));
                 }
 
@@ -141,11 +148,11 @@ namespace TES3MP_Manager
                     ExtractSelectedFolders(backupFilePath, sourcePath, targetSubfolder);
                 }
 
-                if (Owner is Main mainFormWithLogging)
+                if (Owner is Main mainFormWithCompletionLogging)
                 {
-                    mainFormWithLogging.Invoke((MethodInvoker)(() =>
+                    mainFormWithCompletionLogging.Invoke((MethodInvoker)(() =>
                     {
-                        mainFormWithLogging.LogMessage($"Rollback completed using backup: {actualFileName}, range: {selectedOption}");
+                        mainFormWithCompletionLogging.LogMessage($"Rollback completed using backup: {actualFileName}, range: {selectedOption}");
                     }));
                 }
             }
@@ -162,7 +169,10 @@ namespace TES3MP_Manager
             }
             finally
             {
-                RestartTes3mpServer();
+                if (wasServerRunning)
+                {
+                    RestartTes3mpServer();
+                }
 
                 if (Owner is Main mainFormToRestart)
                 {

@@ -493,7 +493,7 @@ namespace TES3MP_Manager
             }
         }
 
-        private bool IsServerRunning()
+        public bool IsServerRunning()
         {
             var processes = System.Diagnostics.Process.GetProcessesByName("tes3mp-server");
             return processes.Length > 0;
