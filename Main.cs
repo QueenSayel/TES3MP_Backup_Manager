@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Windows.Forms;
 using System.Timers;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace TES3MP_Manager
 {
@@ -97,7 +98,7 @@ namespace TES3MP_Manager
                     {
                         Path = commandDirectory,
                         Filter = "command.json",
-                        NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                        NotifyFilter = NotifyFilters.LastWrite,
                         EnableRaisingEvents = true
                     };
 
@@ -115,7 +116,7 @@ namespace TES3MP_Manager
         }
 
         private DateTime lastCommandProcessedTime = DateTime.MinValue;
-        private readonly TimeSpan debounceTime = TimeSpan.FromSeconds(1);
+        private readonly TimeSpan debounceTime = TimeSpan.FromSeconds(5);
 
         private void CommandFile_Changed(object sender, FileSystemEventArgs e)
         {
@@ -136,14 +137,29 @@ namespace TES3MP_Manager
                     string jsonContent = File.ReadAllText(commandFilePath);
 
                     // Parse the JSON file
-                    var command = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent);
+                    var command = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent);
 
-                    if (command != null && command.ContainsKey("backup") && command.ContainsKey("option"))
+                    if (command != null && command.ContainsKey("option"))
                     {
-                        string backupDate = command["backup"];
                         string option = command["option"];
 
-                        Invoke((MethodInvoker)(() => PerformRollbackFromCommand(backupDate, option)));
+                        if (command.ContainsKey("backup") && !string.IsNullOrEmpty(command["backup"]))
+                        {
+                            string backupDate = command["backup"];
+                            Invoke((MethodInvoker)(() => PerformRollbackFromCommand(backupDate, option)));
+                        }
+                        else if (option.Equals("shutdown", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Invoke((MethodInvoker)(() => ShutdownBtn_Click(sender, e)));
+                        }
+                        else if (option.Equals("restart", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Invoke((MethodInvoker)(() => RestartBtn_Click(sender, e)));
+                        }
+                        else
+                        {
+                            Invoke((MethodInvoker)(() => LogMessage("Invalid or incomplete command.json format.")));
+                        }
                     }
                     else
                     {
@@ -156,7 +172,6 @@ namespace TES3MP_Manager
                 Invoke((MethodInvoker)(() => LogMessage($"Error reading or processing command.json: {ex.Message}")));
             }
         }
-
 
         private void PerformRollbackFromCommand(string backupDate, string option)
         {
@@ -585,7 +600,6 @@ namespace TES3MP_Manager
                 MessageBox.Show($"Error restarting the server: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
 
         private void launchServerBtn_Click(object sender, EventArgs e)
         {
