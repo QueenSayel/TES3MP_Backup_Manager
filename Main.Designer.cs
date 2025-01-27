@@ -121,7 +121,7 @@
             // 
             // setPathBackupBtn
             // 
-            setPathBackupBtn.Location = new Point(30, 77);
+            setPathBackupBtn.Location = new Point(29, 77);
             setPathBackupBtn.Name = "setPathBackupBtn";
             setPathBackupBtn.Size = new Size(75, 23);
             setPathBackupBtn.TabIndex = 7;

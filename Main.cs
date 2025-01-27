@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using System.Timers;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Drawing;
 
 namespace TES3MP_Manager
 {
@@ -106,17 +107,13 @@ namespace TES3MP_Manager
                 }
                 else
                 {
-                    LogMessage("Command directory does not exist. Command watcher not initialized.");
+                    LogMessage("Command directory does not exist.");
                 }
-            }
-            else
-            {
-                LogMessage("Source path not set. Command watcher not initialized.");
             }
         }
 
         private DateTime lastCommandProcessedTime = DateTime.MinValue;
-        private readonly TimeSpan debounceTime = TimeSpan.FromSeconds(5);
+        private readonly TimeSpan debounceTime = TimeSpan.FromSeconds(10);
 
         private void CommandFile_Changed(object sender, FileSystemEventArgs e)
         {
@@ -176,6 +173,7 @@ namespace TES3MP_Manager
         private void PerformRollbackFromCommand(string backupDate, string option)
         {
             bool rollbackFormCreated = false;
+            bool wasBackupTimerRunning = false; // store timer state
 
             try
             {
@@ -195,8 +193,15 @@ namespace TES3MP_Manager
                     rollbackFormCreated = true;
                 }
 
+                wasBackupTimerRunning = IsBackupTimerRunning(); // Get timer state before stopping
                 rollbackForm.KillTes3mpServer();
                 StopBackupTimer();
+
+                Invoke((MethodInvoker)(() =>
+                {
+                    LogMessage("Performing rollback...");
+                }));
+
                 string sourcePath = Properties.Settings.Default.SourcePath;
 
                 if (option == "Everything")
@@ -220,8 +225,11 @@ namespace TES3MP_Manager
             finally
             {
                 rollbackForm.RestartTes3mpServer();
-                StartBackupTimer();
-                LogMessage("Backup process resumed.");
+                if (wasBackupTimerRunning) //Check if timer was running before rollback
+                {
+                    StartBackupTimer();
+                    LogMessage("Backup process resumed.");
+                }
 
                 if (rollbackFormCreated && rollbackForm != null)
                 {
@@ -230,7 +238,6 @@ namespace TES3MP_Manager
                 }
             }
         }
-
 
         private void InitializeBackup()
         {
@@ -252,7 +259,7 @@ namespace TES3MP_Manager
             timerLabel.Visible = false;
             if (string.IsNullOrEmpty(sourcePath) || string.IsNullOrEmpty(backupPath))
             {
-                logTextBox.Text = "Please set source and backup folders." + Environment.NewLine;
+                logTextBox.Text = "Please set server and backup folders." + Environment.NewLine;
             }
             else
             {
@@ -278,7 +285,11 @@ namespace TES3MP_Manager
                 {
                     sourcePath = dialog.SelectedPath;
                     pathTextBox.Text = sourcePath;
-                    LogMessage($"Source path set to: {sourcePath}");
+                    LogMessage($"Server path set to: {sourcePath}");
+                    setPathBackupBtn.Enabled = true;
+                    backupsBtn.Enabled = true;
+                    Properties.Settings.Default.SourcePath = sourcePath;
+                    Properties.Settings.Default.Save();
                 }
             }
         }
@@ -289,9 +300,22 @@ namespace TES3MP_Manager
             {
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
-                    backupPath = dialog.SelectedPath;
+                    string selectedBackupPath = dialog.SelectedPath;
+
+                    // Check if the selected backup path is within the source path
+                    if (!string.IsNullOrEmpty(sourcePath) && selectedBackupPath.StartsWith(sourcePath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        MessageBox.Show("Backup path cannot be a subfolder of the server path.", "Invalid Path", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                        return; // Do not set path
+                    }
+
+                    backupPath = selectedBackupPath;
                     pathBackupTextBox.Text = backupPath;
                     LogMessage($"Backup path set to: {backupPath}");
+
+                    Properties.Settings.Default.BackupPath = backupPath;
+                    Properties.Settings.Default.Save();
 
                     if (rollbackForm != null && !rollbackForm.IsDisposed)
                     {
@@ -325,7 +349,7 @@ namespace TES3MP_Manager
         {
             if (string.IsNullOrEmpty(sourcePath) || string.IsNullOrEmpty(backupPath))
             {
-                MessageBox.Show("Please set both source and backup paths.");
+                MessageBox.Show("Please set both server and backup paths.");
                 return;
             }
 
@@ -377,7 +401,7 @@ namespace TES3MP_Manager
             startBtn.Enabled = true;
             stopBtn.Visible = false;
             timerLabel.Visible = false;
-            LogMessage("Backup process stopped by user.");
+            LogMessage("Backup process stopped.");
         }
 
         private void BackupTimer_Tick(object sender, ElapsedEventArgs e)
@@ -418,6 +442,29 @@ namespace TES3MP_Manager
                 ZipFile.CreateFromDirectory(sourcePath, zipFilePath, compressionLevel, false);
 
                 EnforceBackupLimit();
+
+                using (Rollback tempRollback = new Rollback(this))
+                {
+                    List<string> prefixes = new List<string>();
+                    string[] zipFiles = Directory.GetFiles(backupPath, "*.zip");
+                    foreach (string zipFile in zipFiles)
+                    {
+                        string fileName = Path.GetFileName(zipFile);
+
+                        // Extract the timestamp from the filename and parse it as DateTime
+                        string timestampString = fileName.Substring(7, 15); // Extract "20241112_233517"
+                        if (DateTime.TryParseExact(timestampString, "yyyyMMdd_HHmmss",
+                                                   System.Globalization.CultureInfo.InvariantCulture,
+                                                   System.Globalization.DateTimeStyles.None,
+                                                   out DateTime dateTime))
+                        {
+                            // Format the date and time and add it as a prefix
+                            string formattedDate = $"[{dateTime:yyyy-MM-dd HH:mm:ss}]";
+                            prefixes.Add(formattedDate); // Add prefix to the list
+                        }
+                    }
+                    tempRollback.UpdateBackupJson(prefixes);
+                }
 
                 Invoke((MethodInvoker)(() =>
                 {
@@ -507,6 +554,11 @@ namespace TES3MP_Manager
                 }));
             }
         }
+        public bool IsBackupTimerRunning()
+        {
+            return backupTimer != null && backupTimer.Enabled;
+        }
+
 
         public bool IsServerRunning()
         {
@@ -583,9 +635,9 @@ namespace TES3MP_Manager
                 }
 
                 // Start the server
-                if (!string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                if (!string.IsNullOrEmpty(Properties.Settings.Default.ExePath) && File.Exists(Properties.Settings.Default.ExePath))
                 {
-                    Process.Start(exePath);
+                    Process.Start(Properties.Settings.Default.ExePath);
                     LogMessage("TES3MP server has been restarted.");
                 }
                 else
@@ -607,8 +659,9 @@ namespace TES3MP_Manager
             {
                 try
                 {
-                    Process.Start(exePath);
+                    Process.Start(Properties.Settings.Default.ExePath);
                     UpdateServerStatus();
+                    LogMessage("TES3MP server has been started.");
                 }
                 catch (Exception ex)
                 {
@@ -622,7 +675,18 @@ namespace TES3MP_Manager
             InitializeStatusMonitor();
             UpdateServerStatus();
             minimiseCheckBox.Checked = Properties.Settings.Default.Minimise;
-
+            // Check if the server path is already set and valid
+            string savedPath = Properties.Settings.Default.SourcePath;
+            if (!string.IsNullOrEmpty(savedPath) && Directory.Exists(savedPath))
+            {
+                setPathBackupBtn.Enabled = true;
+                backupsBtn.Enabled = true;
+            }
+            else
+            {
+                setPathBackupBtn.Enabled = false;
+                backupsBtn.Enabled = false;
+            }
             if (minimiseCheckBox.Checked)
             {
                 this.Hide();

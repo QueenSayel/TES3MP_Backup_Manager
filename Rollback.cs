@@ -15,12 +15,14 @@ namespace TES3MP_Manager
     public partial class Rollback : Form
     {
         private const int Gap = 10;
+        private Main _mainForm;
         public Rollback(Form mainForm)
         {
             InitializeComponent();
             PositionToLeftOfMainForm(mainForm);
             backupsNumeric.Value = Properties.Settings.Default.MaxBackups;
             backupsNumeric.ValueChanged += BackupsNumeric_ValueChanged;
+            _mainForm = mainForm as Main;
         }
         private void BackupsNumeric_ValueChanged(object sender, EventArgs e)
         {
@@ -115,21 +117,23 @@ namespace TES3MP_Manager
 
             // Get the Main form instance to access its IsServerRunning method
             bool wasServerRunning = false;
+            bool wasBackupTimerRunning = false;
             if (Owner is Main mainForm)
             {
                 wasServerRunning = mainForm.IsServerRunning();
+                wasBackupTimerRunning = mainForm.IsBackupTimerRunning();
             }
 
             try
             {
                 KillTes3mpServer();
 
-                if (Owner is Main mainFormWithLogging)
+                if (_mainForm != null)
                 {
-                    mainFormWithLogging.Invoke((MethodInvoker)(() =>
+                    _mainForm.Invoke((MethodInvoker)(() =>
                     {
-                        mainFormWithLogging.StopBackupTimer();
-                        mainFormWithLogging.LogMessage("Performing rollback...");
+                        _mainForm.StopBackupTimer();
+                        _mainForm.LogMessage("Performing rollback...");
                     }));
                 }
 
@@ -148,21 +152,21 @@ namespace TES3MP_Manager
                     ExtractSelectedFolders(backupFilePath, sourcePath, targetSubfolder);
                 }
 
-                if (Owner is Main mainFormWithCompletionLogging)
+                if (_mainForm != null)
                 {
-                    mainFormWithCompletionLogging.Invoke((MethodInvoker)(() =>
+                    _mainForm.Invoke((MethodInvoker)(() =>
                     {
-                        mainFormWithCompletionLogging.LogMessage($"Rollback completed using backup: {actualFileName}, range: {selectedOption}");
+                        _mainForm.LogMessage($"Rollback completed using backup: {actualFileName}, range: {selectedOption}");
                     }));
                 }
             }
             catch (Exception ex)
             {
-                if (Owner is Main mainFormWithErrorLogging)
+                if (_mainForm != null)
                 {
-                    mainFormWithErrorLogging.Invoke((MethodInvoker)(() =>
+                    _mainForm.Invoke((MethodInvoker)(() =>
                     {
-                        mainFormWithErrorLogging.LogMessage($"Error during rollback: {ex.Message}");
+                        _mainForm.LogMessage($"Error during rollback: {ex.Message}");
                     }));
                 }
                 MessageBox.Show($"Error during rollback: {ex.Message}", "Rollback Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -174,13 +178,14 @@ namespace TES3MP_Manager
                     RestartTes3mpServer();
                 }
 
-                if (Owner is Main mainFormToRestart)
+                if (_mainForm != null && wasBackupTimerRunning) // check if timer was running before the rollback
                 {
-                    mainFormToRestart.Invoke((MethodInvoker)(() =>
+                    _mainForm.Invoke((MethodInvoker)(() =>
                     {
-                        mainFormToRestart.StartBackupTimer();
-                        mainFormToRestart.LogMessage("Backup process resumed.");
+                        _mainForm.StartBackupTimer();
+                        _mainForm.LogMessage("Backup process resumed.");
                     }));
+
                 }
             }
         }
@@ -229,28 +234,32 @@ namespace TES3MP_Manager
             try
             {
                 var processes = System.Diagnostics.Process.GetProcessesByName("tes3mp-server");
+                if (processes.Length == 0)
+                {
+                    return; // Exit early if no server is running
+                }
+
                 foreach (var process in processes)
                 {
                     process.Kill();
                     process.WaitForExit(); // Ensure the process has terminated
                 }
-                // Log the termination of the process
-                if (Owner is Main mainForm)
+
+                if (_mainForm != null)
                 {
-                    mainForm.Invoke((MethodInvoker)(() =>
+                    _mainForm.Invoke((MethodInvoker)(() =>
                     {
-                        mainForm.LogMessage("TES3MP server process terminated before rollback.");
+                        _mainForm.LogMessage("TES3MP server has been shut down.");
                     }));
                 }
             }
             catch (Exception ex)
             {
-                // Log any errors during process termination
-                if (Owner is Main mainForm)
+                if (_mainForm != null)
                 {
-                    mainForm.Invoke((MethodInvoker)(() =>
+                    _mainForm.Invoke((MethodInvoker)(() =>
                     {
-                        mainForm.LogMessage($"Error terminating TES3MP server process: {ex.Message}");
+                        _mainForm.LogMessage($"Error terminating TES3MP server process: {ex.Message}");
                     }));
                 }
             }
@@ -278,28 +287,28 @@ namespace TES3MP_Manager
                 process.Start();
 
                 // Log the restart of the process
-                if (Owner is Main mainForm)
+                if (_mainForm != null)
                 {
-                    mainForm.Invoke((MethodInvoker)(() =>
+                    _mainForm.Invoke((MethodInvoker)(() =>
                     {
-                        mainForm.LogMessage("TES3MP server process restarted after rollback.");
+                        _mainForm.LogMessage("TES3MP server has been restarted.");
                     }));
                 }
             }
             catch (Exception ex)
             {
                 // Log any errors during process restart
-                if (Owner is Main mainForm)
+                if (_mainForm != null)
                 {
-                    mainForm.Invoke((MethodInvoker)(() =>
+                    _mainForm.Invoke((MethodInvoker)(() =>
                     {
-                        mainForm.LogMessage($"Error restarting TES3MP server process: {ex.Message}");
+                        _mainForm.LogMessage($"Error restarting TES3MP server process: {ex.Message}");
                     }));
                 }
             }
         }
 
-        private void UpdateBackupJson(List<string> prefixes)
+        public void UpdateBackupJson(List<string> prefixes)
         {
             try
             {
@@ -322,7 +331,7 @@ namespace TES3MP_Manager
                 // Convert the list of prefixes to JSON format
                 string jsonContent = System.Text.Json.JsonSerializer.Serialize(prefixes, new System.Text.Json.JsonSerializerOptions
                 {
-                    WriteIndented = true // Pretty-print the JSON
+                    WriteIndented = true // Pretty-print
                 });
 
                 // Write the JSON content to the file
@@ -341,11 +350,11 @@ namespace TES3MP_Manager
             catch (Exception ex)
             {
                 // Log any errors
-                if (Owner is Main mainForm)
+                if (_mainForm != null)
                 {
-                    mainForm.Invoke((MethodInvoker)(() =>
+                    _mainForm.Invoke((MethodInvoker)(() =>
                     {
-                        mainForm.LogMessage($"Error updating backup JSON file: {ex.Message}");
+                        _mainForm.LogMessage($"Error updating backup JSON file: {ex.Message}");
                     }));
                 }
             }
