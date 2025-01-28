@@ -1,6 +1,6 @@
 # TES3MP Manager
 
-Automatically backup and restore your server state. It can be controlled from the application or remotely using the `/backup` command within the game's console (via a `command.json` file).
+Bring Save and Load functionality to your TES3MP server.
 
 # Installation
 
