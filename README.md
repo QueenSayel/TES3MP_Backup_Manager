@@ -1,4 +1,4 @@
-# TES3MP Manager
+# TES3MP Backup Manager
 
 Bring Save and Load functionality to your TES3MP server.
 
